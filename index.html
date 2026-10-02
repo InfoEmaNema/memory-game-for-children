@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#81D4FA">
+  <title>Happy Paws — Memory Game</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --sky: #81D4FA;
+      --ink: #244365;
+      --yellow: #FFCA28;
+      --orange: #FF9F1C;
+      --green: #55C878;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      padding: 24px 18px 36px;
+      color: var(--ink);
+      font-family: "Trebuchet MS", "Arial Rounded MT Bold", system-ui, sans-serif;
+      background-color: var(--sky);
+      background-image: radial-gradient(circle, rgba(255,255,255,.88) 0 17px, transparent 18px);
+      background-size: 108px 108px;
+      background-position: 0 0;
+    }
+    button { font: inherit; }
+    .app { width: min(100%, 850px); margin: 0 auto; position: relative; }
+    header { text-align: center; margin: 0 0 20px; }
+    h1 { margin: 0; font-size: clamp(2rem, 5vw, 3.1rem); line-height: 1.05; color: #164f78; text-shadow: 0 3px 0 rgba(255,255,255,.8); }
+    .subtitle { margin: 8px 0 0; font-size: 1rem; font-weight: 700; }
+    .hud {
+      display: flex; justify-content: space-between; align-items: center; gap: 12px;
+      margin: 0 auto 16px; padding: 12px 18px; max-width: 620px;
+      background: rgba(255,255,255,.94); border: 3px solid white; border-radius: 18px;
+      box-shadow: 0 5px 0 rgba(41,111,151,.16); font-weight: 900; font-size: 1.12rem;
+    }
+    .hud span { white-space: nowrap; }
+    .music-toggle {
+      flex: 0 0 auto; border: 0; border-radius: 12px; padding: 8px 11px; color: #164f78;
+      background: #E3F6FF; font-size: .9rem; font-weight: 900; cursor: pointer;
+    }
+    .music-toggle:hover { background: #C7EDFF; }
+    .board {
+      --cols: 4;
+      display: grid; grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
+      gap: clamp(8px, 1.7vw, 14px); width: min(100%, 650px); margin: 0 auto;
+      perspective: 1000px;
+    }
+    .card {
+      border: 0; padding: 0; background: transparent; aspect-ratio: 1 / 1;
+      border-radius: 20px; cursor: pointer; perspective: 900px; -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+    }
+    .card:focus-visible { outline: 4px solid #164f78; outline-offset: 3px; }
+    .card-inner {
+      position: relative; display: block; width: 100%; height: 100%; border-radius: 20px;
+      transform-style: preserve-3d; transition: transform .48s cubic-bezier(.2,.75,.25,1);
+      box-shadow: 0 6px 0 rgba(38,98,137,.22), 0 9px 16px rgba(22,79,120,.14);
+    }
+    .card.is-flipped .card-inner, .card.is-matched .card-inner { transform: rotateY(180deg); }
+    .face {
+      position: absolute; inset: 0; display: grid; place-items: center; border-radius: 20px;
+      backface-visibility: hidden; -webkit-backface-visibility: hidden; overflow: hidden;
+    }
+    .back { color: white; font-size: clamp(2rem, 6vw, 3.5rem); font-weight: 1000; text-shadow: 0 3px 0 rgba(169,91,0,.22); background: radial-gradient(circle at 35% 28%, #FFD95B 0%, #FFB52E 46%, #F7941D 100%); }
+    .front { transform: rotateY(180deg); background: #fff; border: 5px solid var(--yellow); font-size: clamp(2rem, 6.5vw, 4.2rem); }
+    .card.is-matched .front { background: #F2FFF4; border-color: #70D68A; }
+    .card:disabled { cursor: default; }
+    .hint { text-align: center; font-size: .92rem; font-weight: 700; margin: 15px 0 0; }
+    .overlay {
+      position: fixed; inset: 0; z-index: 5; display: grid; place-items: center; padding: 20px;
+      background: rgba(24,75,111,.42); backdrop-filter: blur(4px);
+    }
+    .overlay[hidden] { display: none; }
+    .dialog {
+      position: relative; width: min(100%, 480px); padding: 36px 24px 30px; text-align: center;
+      background: #fff; border: 7px solid #FFE082; border-radius: 30px;
+      box-shadow: 0 12px 0 rgba(34,91,124,.25); z-index: 2;
+    }
+    .dialog h2 { margin: 0 0 12px; color: #1D7546; font-size: clamp(2rem, 8vw, 3.2rem); animation: bounce 1s ease-in-out infinite alternate; }
+    .dialog p { margin: 0 0 22px; font-size: 1.1rem; font-weight: 700; }
+    .action {
+      border: 0; border-radius: 18px; padding: 15px 26px; color: white; background: var(--green);
+      box-shadow: 0 6px 0 #329c55; font-size: 1.25rem; font-weight: 1000; cursor: pointer;
+      transition: transform .12s, box-shadow .12s;
+    }
+    .action:hover { transform: translateY(-2px); box-shadow: 0 8px 0 #329c55; }
+    .action:active { transform: translateY(3px); box-shadow: 0 3px 0 #329c55; }
+    .action.restart { background: var(--orange); box-shadow: 0 6px 0 #d87508; }
+    .action.restart:hover { box-shadow: 0 8px 0 #d87508; }
+    .action.secondary { margin-top: 12px; color: #164f78; background: #E3F6FF; box-shadow: 0 5px 0 #a9d9ef; font-size: 1rem; }
+    .action.secondary:hover { box-shadow: 0 7px 0 #a9d9ef; }
+    #confetti { position: fixed; inset: 0; z-index: 1; width: 100%; height: 100%; pointer-events: none; }
+    @keyframes bounce { from { transform: translateY(0) rotate(-2deg); } to { transform: translateY(-9px) rotate(2deg); } }
+    @media (max-width: 600px) {
+      body { padding: 18px 10px 24px; background-size: 82px 82px; background-image: radial-gradient(circle, rgba(255,255,255,.88) 0 13px, transparent 14px); }
+      header { margin-bottom: 14px; }
+      h1 { font-size: clamp(1.8rem, 9vw, 2.5rem); }
+      .subtitle { font-size: .9rem; }
+      .hud { max-width: 500px; padding: 9px 10px; gap: 7px; font-size: clamp(.82rem, 3.8vw, 1.05rem); margin-bottom: 12px; }
+      .music-toggle { padding: 7px 8px; font-size: .78rem; }
+      .board { gap: 8px; }
+      .card, .card-inner, .face { border-radius: 14px; }
+      .front { border-width: 4px; }
+      .hint { font-size: .82rem; margin-top: 12px; }
+      .dialog { padding: 30px 18px 24px; }
+    }
+    @media (max-width: 360px) { body { padding-inline: 7px; } .board { gap: 6px; } .card, .card-inner, .face { border-radius: 11px; } }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; } }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header>
+      <h1>🐾 Happy Paws 🐾</h1>
+      <p class="subtitle">Find the matching animal friends!</p>
+    </header>
+    <section class="hud" aria-label="Game progress">
+      <span id="level">Level: 1</span>
+      <span id="pairs">Pairs: 0 / 6</span>
+      <button id="music-hud" class="music-toggle" type="button" aria-pressed="true" aria-label="Turn music off">🔊 Music</button>
+    </section>
+    <section id="board" class="board" aria-label="Memory cards"></section>
+    <p class="hint">Flip two cards and find a friendly pair 🌈</p>
+  </main>
+  <section id="start-menu" class="overlay" role="dialog" aria-modal="true" aria-labelledby="start-title">
+    <div class="dialog">
+      <h2 id="start-title">Ready to play? 🐾</h2>
+      <p>Find all the matching animal friends. Take your time and have fun!</p>
+      <button id="start-game" class="action" type="button">Start Game</button><br>
+      <button id="music-menu" class="action secondary" type="button" aria-pressed="true">🔊 Music: On</button>
+    </div>
+  </section>
+  <section id="victory" class="overlay" role="dialog" aria-modal="true" aria-labelledby="victory-title" hidden>
+    <canvas id="confetti" aria-hidden="true"></canvas>
+    <div class="dialog">
+      <h2 id="victory-title">Great job! 🎉</h2>
+      <p id="victory-copy">You found all the animal friends!</p>
+      <button id="next" class="action" type="button">Next Level</button>
+    </div>
+  </section>
+  <script>
+    (() => {
+      'use strict';
+      const LEVELS = [
+        { cards: 12, cols: 4 },
+        { cards: 16, cols: 4 },
+        { cards: 20, cols: 5 },
+        { cards: 24, cols: 6 },
+        { cards: 30, cols: 6 }
+      ];
+      const ANIMALS = ['🦁','🐻','🐱','🐶','🐰','🦊','🦄','🦖','🐼','🐸','🐵','🐨','🐯','🐮','🐷','🐙','🦋','🐧','🐢','🦒','🐘','🦓','🐬','🦉','🐝','🦔','🐥','🦜','🐳','🦦'];
+      const board = document.querySelector('#board');
+      const levelLabel = document.querySelector('#level');
+      const pairsLabel = document.querySelector('#pairs');
+      const overlay = document.querySelector('#victory');
+      const title = document.querySelector('#victory-title');
+      const copy = document.querySelector('#victory-copy');
+      const nextButton = document.querySelector('#next');
+      const startMenu = document.querySelector('#start-menu');
+      const startButton = document.querySelector('#start-game');
+      const musicMenuButton = document.querySelector('#music-menu');
+      const musicHudButton = document.querySelector('#music-hud');
+      const canvas = document.querySelector('#confetti');
+      const ctx = canvas.getContext('2d');
+      let level = 1, foundPairs = 0, first = null, locked = false, mismatchTimer = null;
+      let particles = [], animationFrame = 0, confettiUntil = 0;
+      let audioContext = null, musicTimer = null, musicOn = true, noteIndex = 0;
+      const melody = [
+        [523.25, 659.25], [587.33, 698.46], [659.25, 783.99], [523.25, 659.25],
+        [440, 587.33], [523.25, 659.25], [587.33, 698.46], [392, 523.25],
+        [440, 587.33], [523.25, 659.25], [392, 523.25], [440, 587.33],
+        [523.25, 659.25], [587.33, 698.46], [659.25, 783.99], [523.25, 659.25]
+      ];
+
+      function playNote(frequency, startAt, duration, volume, type) {
+        const oscillator = audioContext.createOscillator();
+        const gain = audioContext.createGain();
+        oscillator.type = type;
+        oscillator.frequency.setValueAtTime(frequency, startAt);
+        gain.gain.setValueAtTime(0.0001, startAt);
+        gain.gain.exponentialRampToValueAtTime(volume, startAt + 0.025);
+        gain.gain.setValueAtTime(volume, startAt + duration * 0.65);
+        gain.gain.exponentialRampToValueAtTime(0.0001, startAt + duration);
+        oscillator.connect(gain);
+        gain.connect(audioContext.destination);
+        oscillator.start(startAt);
+        oscillator.stop(startAt + duration + 0.02);
+      }
+
+      function playMusicStep() {
+        if (!audioContext || audioContext.state !== 'running' || !musicOn) return;
+        const now = audioContext.currentTime;
+        const chord = melody[noteIndex % melody.length];
+        playNote(chord[0], now, 0.3, 0.035, 'sine');
+        playNote(chord[1], now, 0.24, 0.018, 'triangle');
+        if (noteIndex % 4 === 0) playNote(chord[0] / 2, now, 0.48, 0.025, 'sine');
+        noteIndex++;
+      }
+
+      async function startMusic() {
+        if (!musicOn) return;
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContextClass) return;
+        if (!audioContext) audioContext = new AudioContextClass();
+        if (audioContext.state === 'suspended') await audioContext.resume();
+        if (!musicTimer) {
+          playMusicStep();
+          musicTimer = window.setInterval(playMusicStep, 350);
+        }
+      }
+
+      function updateMusicButtons() {
+        musicMenuButton.textContent = musicOn ? '🔊 Music: On' : '🔇 Music: Off';
+        musicMenuButton.setAttribute('aria-pressed', String(musicOn));
+        musicHudButton.textContent = musicOn ? '🔊 Music' : '🔇 Music';
+        musicHudButton.setAttribute('aria-pressed', String(musicOn));
+        musicHudButton.setAttribute('aria-label', musicOn ? 'Turn music off' : 'Turn music on');
+      }
+
+      function setMusic(enabled) {
+        musicOn = enabled;
+        if (musicOn) startMusic();
+        else if (audioContext) audioContext.suspend();
+        updateMusicButtons();
+      }
+
+      function shuffled(items) {
+        const result = [...items];
+        for (let i = result.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [result[i], result[j]] = [result[j], result[i]];
+        }
+        return result;
+      }
+
+      function makeCard(animal, index) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'card';
+        button.dataset.animal = animal;
+        button.setAttribute('aria-label', `Card ${index + 1}, face down`);
+        button.setAttribute('aria-pressed', 'false');
+        button.innerHTML = '<span class="card-inner"><span class="face back" aria-hidden="true">?</span><span class="face front" aria-hidden="true"></span></span>';
+        button.querySelector('.front').textContent = animal;
+        button.addEventListener('click', () => flip(button));
+        return button;
+      }
+
+      function startLevel() {
+        if (mismatchTimer) clearTimeout(mismatchTimer);
+        mismatchTimer = null;
+        first = null; locked = false; foundPairs = 0;
+        const config = LEVELS[level - 1];
+        const pairCount = config.cards / 2;
+        levelLabel.textContent = `Level: ${level}`;
+        pairsLabel.textContent = `Pairs: 0 / ${pairCount}`;
+        board.style.setProperty('--cols', config.cols);
+        board.replaceChildren(...shuffled(ANIMALS.slice(0, pairCount).flatMap(animal => [animal, animal])).map(makeCard));
+      }
+
+      function flip(card) {
+        if (locked || card.classList.contains('is-flipped') || card.classList.contains('is-matched')) return;
+        card.classList.add('is-flipped');
+        card.setAttribute('aria-pressed', 'true');
+        card.setAttribute('aria-label', `Animal ${card.dataset.animal}`);
+        if (!first) { first = card; return; }
+        const second = card;
+        if (first.dataset.animal === second.dataset.animal) {
+          first.classList.add('is-matched'); second.classList.add('is-matched');
+          first.disabled = true; second.disabled = true;
+          first.setAttribute('aria-label', `Matched ${first.dataset.animal}`);
+          second.setAttribute('aria-label', `Matched ${second.dataset.animal}`);
+          foundPairs++;
+          pairsLabel.textContent = `Pairs: ${foundPairs} / ${LEVELS[level - 1].cards / 2}`;
+          first = null;
+          if (foundPairs === LEVELS[level - 1].cards / 2) showVictory();
+        } else {
+          locked = true;
+          const previous = first;
+          first = null;
+          mismatchTimer = setTimeout(() => {
+            [previous, second].forEach(item => {
+              item.classList.remove('is-flipped');
+              item.setAttribute('aria-pressed', 'false');
+              item.setAttribute('aria-label', 'Card, face down');
+            });
+            mismatchTimer = null;
+            locked = false;
+          }, 1500);
+        }
+      }
+
+      function showVictory() {
+        const finalLevel = level === LEVELS.length;
+        title.textContent = finalLevel ? 'You finished all levels! 🏆' : 'Great job! 🎉';
+        copy.textContent = finalLevel ? 'You are an animal matching champion!' : 'You found all the animal friends!';
+        nextButton.textContent = finalLevel ? 'Restart Game' : 'Next Level';
+        nextButton.classList.toggle('restart', finalLevel);
+        overlay.hidden = false;
+        startConfetti();
+        nextButton.focus();
+      }
+
+      nextButton.addEventListener('click', () => {
+        stopConfetti();
+        overlay.hidden = true;
+        level = level === LEVELS.length ? 1 : level + 1;
+        startLevel();
+        board.querySelector('.card')?.focus();
+      });
+
+      startButton.addEventListener('click', async () => {
+        startMenu.hidden = true;
+        if (musicOn) await startMusic();
+        board.querySelector('.card')?.focus();
+      });
+      musicMenuButton.addEventListener('click', () => setMusic(!musicOn));
+      musicHudButton.addEventListener('click', () => setMusic(!musicOn));
+
+      function resizeCanvas() {
+        const ratio = Math.max(1, window.devicePixelRatio || 1);
+        canvas.width = Math.floor(window.innerWidth * ratio);
+        canvas.height = Math.floor(window.innerHeight * ratio);
+        canvas.style.width = `${window.innerWidth}px`;
+        canvas.style.height = `${window.innerHeight}px`;
+        ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+      }
+      function startConfetti() {
+        resizeCanvas();
+        const colors = ['#FF595E', '#FFCA3A', '#8AC926', '#1982C4', '#B76CFD', '#FF7B00'];
+        const now = performance.now();
+        confettiUntil = now + 6500;
+        particles = Array.from({ length: 150 }, () => ({
+          x: Math.random() * window.innerWidth,
+          y: -Math.random() * window.innerHeight,
+          vx: (Math.random() - .5) * 2.2,
+          vy: 2 + Math.random() * 4,
+          size: 5 + Math.random() * 8,
+          rotation: Math.random() * Math.PI,
+          spin: (Math.random() - .5) * .16,
+          color: colors[Math.floor(Math.random() * colors.length)]
+        }));
+        cancelAnimationFrame(animationFrame);
+        drawConfetti(now);
+      }
+      function drawConfetti(now) {
+        const width = window.innerWidth, height = window.innerHeight;
+        ctx.clearRect(0, 0, width, height);
+        for (const p of particles) {
+          p.x += p.vx; p.y += p.vy; p.rotation += p.spin;
+          if (p.y > height + 12) { p.y = -12; p.x = Math.random() * width; }
+          ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rotation); ctx.fillStyle = p.color;
+          ctx.fillRect(-p.size / 2, -p.size / 3, p.size, p.size * .65); ctx.restore();
+        }
+        if (now < confettiUntil && !overlay.hidden) animationFrame = requestAnimationFrame(drawConfetti);
+        else { ctx.clearRect(0, 0, width, height); animationFrame = 0; }
+      }
+      function stopConfetti() {
+        cancelAnimationFrame(animationFrame); animationFrame = 0; particles = [];
+        ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+      }
+      window.addEventListener('resize', () => { if (!overlay.hidden) resizeCanvas(); });
+      startLevel();
+      updateMusicButtons();
+    })();
+  </script>
+</body>
+</html>
